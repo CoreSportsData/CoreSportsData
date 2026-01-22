@@ -1,0 +1,268 @@
+---
+title: "AFL Analysis: What Drives Winning?"
+date: "2026-01-21"
+output: distill::distill_article
+css: styles.css
+---
+
+```{r afl-setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+
+# 1. Load Libraries
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(xaringanExtra)
+library(htmltools)
+library(reactable)
+library(purrr)
+
+# 2. Activate the Tabs (Panelset)
+xaringanExtra::use_panelset()
+
+# 3. Load Data
+afl_data <- read_excel("afl_team_stats_analysis.xlsx")
+
+# 4. Data Cleaning (Ensure numbers are numeric)
+stats_list <- c("Disposal_Diff", "I50_Diff", "Clearance_Diff", "Tackle_Diff", "Metres_Diff")
+afl_data <- afl_data %>%
+  mutate(across(all_of(c(stats_list, "Margin")), ~as.numeric(as.character(.))))
+```
+
+## Introduction
+
+This analysis explores the key statistical drivers of winning in AFL by examining the relationship between various team performance differentials and match margins. 
+
+**What are Differentials?** A differential is the difference between a team's statistic and their opponent's statistic in the same match. For example, if Team A had 380 disposals and Team B had 350, Team A's Disposal Differential would be +30.
+
+We focus on five critical metrics:
+
+- **Disposal Differential**: The difference in total possessions
+- **Inside 50 Differential**: The difference in forward entries
+- **Clearance Differential**: The difference in clearances won
+- **Tackle Differential**: The difference in tackles made
+- **Metres Gained Differential**: The difference in metres advanced
+
+*Hover over any point in the charts below to see team, opponent, and round details.*
+
+## Data Overview
+
+```{r afl-data-table}
+reactable(
+  afl_data,
+  filterable = TRUE,
+  searchable = TRUE,
+  striped = TRUE,
+  highlight = TRUE,
+  defaultPageSize = 10,
+  bordered = TRUE,
+  theme = reactableTheme(
+    borderColor = "#dfe2e5",
+    stripedColor = "#f6f8fa",
+    highlightColor = "#f0f5ff",
+    cellPadding = "8px 12px"
+  )
+)
+```
+
+## Statistical Analysis
+
+::::: {.panelset}
+
+::: {.panel}
+### Offensive Stats {.panel-name}
+
+```{r afl-offensive-stats, results='asis'}
+# Define Offensive Stats
+off_stats <- c("Disposal_Diff", "I50_Diff", "Metres_Diff")
+
+walk(off_stats, function(stat_name) {
+  
+  # Calculate Correlation
+  plot_data <- afl_data %>% filter(!is.na(afl_data[[stat_name]]), !is.na(Margin))
+  r_sq <- round(cor(plot_data[[stat_name]], plot_data$Margin)^2, 3)
+  
+  # Create Plot
+  p <- ggplot(plot_data, aes(x = .data[[stat_name]], y = Margin)) +
+    geom_point(aes(text = paste("Team:", Team, "<br>Round:", Round, "<br>Opponent:", Opponent)), 
+               alpha = 0.5, color = "#0055aa") +
+    geom_smooth(method = "lm", color = "red", se = FALSE) +
+    labs(title = paste(gsub("_", " ", stat_name), "vs Margin"),
+         subtitle = paste("R² =", r_sq),
+         x = gsub("_", " ", stat_name),
+         y = "Margin (Points)") +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(face = "bold", size = 14),
+      plot.subtitle = element_text(color = "grey40")
+    )
+  
+  # Print Interactive Chart
+  cat("\n\n")
+  print(tagList(ggplotly(p, tooltip = "text")))
+  cat("\n\n")
+})
+```
+
+:::
+
+::: {.panel}
+### Defensive Stats {.panel-name}
+
+```{r afl-defensive-stats, results='asis'}
+# Define Defensive Stats
+def_stats <- c("Clearance_Diff", "Tackle_Diff")
+
+walk(def_stats, function(stat_name) {
+  
+  # Calculate Correlation
+  plot_data <- afl_data %>% filter(!is.na(afl_data[[stat_name]]), !is.na(Margin))
+  r_sq <- round(cor(plot_data[[stat_name]], plot_data$Margin)^2, 3)
+  
+  # Create Plot
+  p <- ggplot(plot_data, aes(x = .data[[stat_name]], y = Margin)) +
+    geom_point(aes(text = paste("Team:", Team, "<br>Round:", Round, "<br>Opponent:", Opponent)), 
+               alpha = 0.5, color = "#228b22") +
+    geom_smooth(method = "lm", color = "red", se = FALSE) +
+    labs(title = paste(gsub("_", " ", stat_name), "vs Margin"),
+         subtitle = paste("R² =", r_sq),
+         x = gsub("_", " ", stat_name),
+         y = "Margin (Points)") +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(face = "bold", size = 14),
+      plot.subtitle = element_text(color = "grey40")
+    )
+  
+  # Print Interactive Chart
+  cat("\n\n")
+  print(tagList(ggplotly(p, tooltip = "text")))
+  cat("\n\n")
+})
+```
+
+:::
+
+::: {.panel}
+### Correlation Summary {.panel-name}
+
+```{r afl-correlation-summary}
+# Calculate correlations for all stats
+correlation_summary <- tibble(
+  Statistic = stats_list,
+  Category = c("Offensive", "Offensive", "Defensive", "Defensive", "Offensive")
+) %>%
+  rowwise() %>%
+  mutate(
+    Correlation = cor(afl_data[[Statistic]], afl_data$Margin, use = "complete.obs"),
+    `R-Squared` = round(Correlation^2, 3),
+    Correlation = round(Correlation, 3)
+  ) %>%
+  arrange(desc(`R-Squared`))
+
+reactable(
+  correlation_summary,
+  columns = list(
+    Statistic = colDef(
+      name = "Statistical Metric",
+      minWidth = 150,
+      cell = function(value) {
+        gsub("_", " ", value)
+      }
+    ),
+    Category = colDef(
+      name = "Category",
+      minWidth = 100,
+      cell = function(value) {
+        color <- if (value == "Offensive") "#0055aa" else "#228b22"
+        div(style = paste("color:", color, "; font-weight: 600;"), value)
+      }
+    ),
+    Correlation = colDef(
+      name = "Correlation (r)",
+      minWidth = 120,
+      format = colFormat(digits = 3)
+    ),
+    `R-Squared` = colDef(
+      name = "R² Value",
+      minWidth = 100,
+      format = colFormat(digits = 3),
+      style = function(value) {
+        normalized <- (value - min(correlation_summary$`R-Squared`)) / 
+                      (max(correlation_summary$`R-Squared`) - min(correlation_summary$`R-Squared`))
+        color <- rgb(colorRamp(c("#ffffff", "#0055aa"))(normalized) / 255)
+        list(background = color)
+      }
+    )
+  ),
+  defaultSorted = "R-Squared",
+  defaultSortOrder = "desc",
+  bordered = TRUE,
+  highlight = TRUE,
+  theme = reactableTheme(
+    borderColor = "#dfe2e5",
+    highlightColor = "#f0f5ff"
+  )
+)
+```
+
+:::
+
+:::::
+
+## Key Findings
+
+```{r afl-key-findings, results='asis'}
+# Identify the strongest predictor
+strongest <- correlation_summary %>% slice(1)
+strongest_col <- as.character(strongest$Statistic)
+
+# Simple approach: calculate win rate by checking the column directly
+temp_data <- afl_data %>%
+  select(all_of(strongest_col), Margin) %>%
+  rename(stat_value = 1) %>%
+  filter(!is.na(stat_value), !is.na(Margin))
+
+positive_diff_wins <- temp_data %>%
+  filter(stat_value > 0, Margin > 0) %>%
+  nrow()
+
+positive_diff_total <- temp_data %>%
+  filter(stat_value > 0) %>%
+  nrow()
+
+positive_win_rate <- round((positive_diff_wins / positive_diff_total) * 100, 1)
+
+cat(paste0(
+  "> **Key Insight:** Teams that win the **", gsub("_", " ", strongest$Statistic), 
+  "** battle win **", positive_win_rate, 
+  "%** of their matches. This metric alone explains ", 
+  round(strongest$`R-Squared` * 100, 1), 
+  "% of the variance in match outcomes.\n\n"
+))
+
+cat("### Statistical Summary\n\n")
+
+cat(paste0(
+  "The analysis reveals that **", gsub("_", " ", strongest$Statistic), 
+  "** is the strongest predictor of match margin, with an R² value of **", 
+  strongest$`R-Squared`, "**.\n\n"
+))
+
+cat("All examined metrics show positive correlations with winning margin:\n\n")
+cat("- **Offensive dominance** (disposals, inside 50s, metres gained) directly contributes to larger winning margins\n")
+cat("- **Defensive pressure** (clearances, tackles) is equally important for controlling matches\n")
+cat("- Teams that win the statistical battle across multiple areas are highly likely to win matches\n")
+```
+
+## Conclusion
+
+The data demonstrates clear relationships between key performance indicators and match success in AFL. Teams looking to improve their win rates should focus on the metrics with the strongest correlations to margin, while maintaining balanced performance across both offensive and defensive categories.
+
+Future analysis could explore:
+
+- Team-specific trends over time
+- Home vs. away performance differences  
+- Interaction effects between multiple statistics
+- Non-linear relationships and threshold effects

@@ -1,7 +1,7 @@
 {
     "id": "A3639C67",
-    "path": "~/sport_analytics_main/about.Rmd",
-    "project_path": "about.Rmd",
+    "path": "~/sport_analytics_main/source/about.Rmd",
+    "project_path": "source/about.Rmd",
     "type": "r_markdown",
     "hash": "3808355296",
     "contents": "",
@@ -16,11 +16,11 @@
         "scrollLine": "19"
     },
     "folds": "",
-    "lastKnownWriteTime": 1769057681,
+    "lastKnownWriteTime": 1769146563,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1769057681588,
+    "last_content_update": 1769146563948,
     "read_only": false,
     "read_only_alternatives": []
 }

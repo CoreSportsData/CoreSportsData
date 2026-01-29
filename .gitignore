@@ -2,3 +2,4 @@
 *.R
 *.xlsx
 source/
+.Rproj.user
